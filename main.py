@@ -3,7 +3,7 @@ import streamlit as st
 import re
 
 # Google Sheets bağlantısı
-sheet_url = "https://drive.google.com/file/d/1F2YiVArQCUXh34yyJNTKGMOwJ_d0QWiM/view?usp=share_link"
+sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_O1wYfDZc1nlVcmfwY491muJSojVIP5tcW0ipegIzv_6JTHAINhO3gV_uiLrdvQ/pub?gid=1982264017&single=true&output=csv"
 
 @st.cache_data
 def load_data():
