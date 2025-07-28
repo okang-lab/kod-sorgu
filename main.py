@@ -36,3 +36,4 @@ def cevapla(soru):
         return "🤔 Ne sorduğunu anlayamadım. Lütfen 'hangi dolapta', 'stok durumu', ya da 'var mı' gibi sorular sor."
 if user_input:
     st.write(cevapla(user_input))
+    
