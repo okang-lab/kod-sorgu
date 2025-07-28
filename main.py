@@ -34,5 +34,5 @@ def cevapla(soru):
         return f"✅ Kod **{kod}** listede var."
     else:
         return "🤔 Ne sorduğunu anlayamadım. Lütfen 'hangi dolapta', 'stok durumu', ya da 'var mı' gibi sorular sor."
-
-if us
+if user_input:
+    st.write(cevapla(user_input))
