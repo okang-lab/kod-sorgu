@@ -1,10 +1,14 @@
 import pandas as pd
 import streamlit as st
-from io import BytesIO
 import datetime
+import os
+import re
 
-# Google Sheets CSV linkin
+# Google Sheets CSV linki
 sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_O1wYfDZc1nlVcmfwY491muJSojVIP5tcW0ipegIzv_6JTHAINhO3gV_uiLrdvQ/pub?gid=1982264017&single=true&output=csv"
+
+# Hareketler CSV dosyası
+hareket_csv = "hareketler.csv"
 
 # Veri çekme
 @st.cache_data
@@ -13,9 +17,20 @@ def load_data():
 
 df = load_data()
 
-# Session state ile geçici veri kaydı
-if "hareketler" not in st.session_state:
-    st.session_state.hareketler = []
+# Hareketler CSV'yi yükle (yoksa oluştur)
+if not os.path.exists(hareket_csv):
+    pd.DataFrame(columns=["Tarih","Parça Kodu","İşlem","Miktar","Alan Kişi","Not"]).to_csv(hareket_csv, index=False)
+
+# Mevcut hareketleri oku
+df_hareket = pd.read_csv(hareket_csv)
+
+# Tarihi datetime'e çevir
+if not df_hareket.empty:
+    df_hareket["Tarih"] = pd.to_datetime(df_hareket["Tarih"], errors="coerce")
+    # 1 aydan eski kayıtları sil
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=30)
+    df_hareket = df_hareket[df_hareket["Tarih"] >= cutoff]
+    df_hareket.to_csv(hareket_csv, index=False)
 
 # Sekmeler
 tab1, tab2, tab3 = st.tabs(["📦 Kod Sorgulama", "➕ Parça Hareketi Kaydı", "📋 Hareket Geçmişi"])
@@ -29,14 +44,14 @@ with tab1:
         soru = soru.lower()
         kodlar = df.iloc[:, 0].astype(str).tolist()
 
-        import re
-        kod_arama = re.findall(r"\b\w+\b", soru)
-        kod = next((k for k in kod_arama if k in kodlar), None)
+        # Sorudaki kelimeleri sırayla kontrol et (alfanumerik dahil)
+        kod_arama = re.findall(r"[A-Za-z0-9\-]+", soru)
+        kod = next((k for k in kod_arama if k.upper() in [x.upper() for x in kodlar]), None)
 
         if not kod:
             return "Kod bulunamadı. Lütfen geçerli bir kod yazın."
 
-        row = df[df.iloc[:, 0].astype(str) == kod]
+        row = df[df.iloc[:, 0].astype(str).str.upper() == kod.upper()]
 
         if "hangi dolap" in soru:
             return f"📦 Kod **{kod}**, dolap: **{row.iloc[0,1]}**"
@@ -59,8 +74,11 @@ with tab1:
 with tab2:
     st.header("Parça Alım / İade Kaydı")
 
+    # Tüm kodları büyük harfe çevirerek listede tut
+    mevcut_kodlar = df.iloc[:, 0].astype(str).str.upper().tolist()
+
     with st.form("hareket_form"):
-        parca_kodu = st.text_input("Parça Kodu")
+        parca_kodu = st.text_input("Parça Kodu").upper()
         islem_turu = st.selectbox("İşlem Türü", ["Alım", "İade"])
         miktar = st.number_input("Miktar", min_value=1, value=1)
         alan_kisi = st.text_input("Alan Kişi")
@@ -68,7 +86,11 @@ with tab2:
         submitted = st.form_submit_button("Kaydı Ekle")
 
         if submitted:
-            if parca_kodu and alan_kisi:
+            if not parca_kodu or not alan_kisi:
+                st.error("❌ Parça kodu ve alan kişi zorunludur.")
+            elif parca_kodu not in mevcut_kodlar:
+                st.error(f"❌ Bu parça kodu **{parca_kodu}** listede yok! Lütfen doğru kodu girin.")
+            else:
                 yeni_kayit = {
                     "Tarih": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "Parça Kodu": parca_kodu,
@@ -77,18 +99,16 @@ with tab2:
                     "Alan Kişi": alan_kisi,
                     "Not": notlar
                 }
-                st.session_state.hareketler.append(yeni_kayit)
+                df_hareket = pd.concat([df_hareket, pd.DataFrame([yeni_kayit])], ignore_index=True)
+                df_hareket.to_csv(hareket_csv, index=False)
                 st.success("✅ Kayıt başarıyla eklendi!")
-            else:
-                st.error("❌ Parça kodu ve alan kişi zorunludur.")
 
 
 # ---------------- Tab 3: Hareket Geçmişi ----------------
 with tab3:
-    st.header("Hareket Geçmişi")
+    st.header("Hareket Geçmişi (Son 30 Gün)")
 
-    if st.session_state.hareketler:
-        df_hareket = pd.DataFrame(st.session_state.hareketler)
+    if not df_hareket.empty:
         st.dataframe(df_hareket)
 
         # CSV indirme butonu
@@ -101,4 +121,3 @@ with tab3:
         )
     else:
         st.info("Henüz kayıt yok.")
-        
