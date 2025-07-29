@@ -13,19 +13,18 @@ HAREKET_CSV = "hareketler.csv"
 # -------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv(GOOGLE_SHEET_CSV, sep=None, engine='python')
+    df = pd.read_csv(GOOGLE_SHEET_CSV, sep=None, engine='python')  # otomatik ayırıcı algılar
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-
-    # En az 3 sütun bekliyoruz
+    
+    # Sütun sayısına göre başlık ekle
     if df.shape[1] >= 3:
         df = df.iloc[:, :3]
         df.columns = ["Kod", "Parça Adı", "Konum"]
     else:
         st.error(f"Beklenen 3 sütun ama {df.shape[1]} sütun bulundu. CSV'yi kontrol et!")
     
-    # Test için stok sütunu ekle
-    df["Stok"] = 100
     return df
+    
 
 df = load_data()
 
