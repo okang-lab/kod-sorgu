@@ -3,6 +3,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 import os
 
+
 st.set_page_config(page_title="Kaffesa B2 Depo Kontrol Sistemi", layout="wide")
 
 # Google Sheets CSV Linki
