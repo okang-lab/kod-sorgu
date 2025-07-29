@@ -1,96 +1,102 @@
 import pandas as pd
 import streamlit as st
-import datetime
+import os
+from datetime import datetime, timedelta
 
-# Google Sheets CSV linki
+# --- AYARLAR ---
 sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_O1wYfDZc1nlVcmfwY491muJSojVIP5tcW0ipegIzv_6JTHAINhO3gV_uiLrdvQ/pub?gid=1982264017&single=true&output=csv"
-
-# Hareketler CSV
 hareket_csv = "hareketler.csv"
+kayit_suresi = 30  # gün
 
-st.set_page_config(page_title="Kaffesa B2 Depo Kontrol Sistemi", layout="wide")
-st.title("📦 Kaffesa B2 Depo Kontrol Sistemi")
+# --- HAREKETLER CSV'Yİ OLUŞTUR ---
+if not os.path.exists(hareket_csv):
+    pd.DataFrame(columns=["Tarih", "Kod", "İşlem", "Miktar", "Kullanıcı"]).to_csv(hareket_csv, index=False)
 
-# Veriyi yükle
+# --- VERİLERİ YÜKLE ---
 @st.cache_data
 def load_data():
     return pd.read_csv(sheet_url)
 
-try:
-    df = load_data()
-except Exception:
-    st.error("Google Sheets verisi çekilemedi. Linki kontrol edin.")
-    st.stop()
+df = load_data()
+df_hareket = pd.read_csv(hareket_csv)
 
-# Kod sütununu string yap
-df.iloc[:, 0] = df.iloc[:, 0].astype(str)
+# Tarih filtresi (1 ay)
+if not df_hareket.empty:
+    df_hareket["Tarih"] = pd.to_datetime(df_hareket["Tarih"])
+    son_tarih = datetime.now() - timedelta(days=kayit_suresi)
+    df_hareket = df_hareket[df_hareket["Tarih"] >= son_tarih]
 
-# Hareketler CSV yükle/oluştur
-try:
-    df_hareket = pd.read_csv(hareket_csv)
-except:
-    df_hareket = pd.DataFrame(columns=["Tarih", "Kod", "İşlem", "Miktar", "Kullanıcı"])
+st.title("Kaffesa B2 Depo Kontrol Sistemi")
+st.markdown("Kod sorgula, stok durumuna bak, alım/iade hareketlerini kaydet. ✅")
 
-# Eski kayıtları temizle (30 gün)
-bugun = datetime.datetime.now()
-df_hareket["Tarih"] = pd.to_datetime(df_hareket["Tarih"], errors="coerce")
-df_hareket = df_hareket[df_hareket["Tarih"] >= bugun - pd.Timedelta(days=30)]
+# --- SEKME MENÜ ---
+secim = st.sidebar.radio("İşlem Seçin:", ["Kod Sorgu", "Toplu Kod Sorgu", "Parça Hareket Girişi", "Hareket Geçmişi", "En Çok Hareket Edenler"])
 
-# Sekmeler
-sekme = st.tabs(["🔍 Kod Sorgu ve Hızlı İşlem", "📊 Hareket Analizi", "📜 Hareket Geçmişi"])
-
-# --------------------- 1. Sekme: Kod Sorgu ---------------------
-with sekme[0]:
-    st.subheader("Kod Sorgulama ve Hızlı Hareket")
-    kod_input = st.text_area("Kod(lar)ı girin (virgül ile ayırın):")
-    user = st.text_input("Kullanıcı Adı (Hareket kaydı için):")
-
-    if kod_input:
-        kodlar = [k.strip() for k in kod_input.split(",") if k.strip()]
-        sorgu_sonuc = df[df.iloc[:,0].isin(kodlar)]
-
-        if sorgu_sonuc.empty:
-            st.warning("Hiçbir kod bulunamadı.")
+# ---------------------------------------------------
+# 1️⃣ KOD SORGU
+# ---------------------------------------------------
+if secim == "Kod Sorgu":
+    kod = st.text_input("Kod girin:")
+    if kod:
+        kod = kod.strip()
+        row = df[df.iloc[:,0].astype(str).str.lower() == kod.lower()]
+        if not row.empty:
+            st.success(f"**Kod:** {kod}")
+            st.write(f"**Dolap:** {row.iloc[0,1]}")
+            st.write(f"**Stok:** {row.iloc[0,2]}")
         else:
-            st.dataframe(sorgu_sonuc)
+            st.error("Kod bulunamadı ❌")
 
-            st.markdown("### Hızlı Hareket Girişi")
-            for idx, row in sorgu_sonuc.iterrows():
-                kod = row.iloc[0]
-                miktar = st.number_input(f"{kod} için miktar:", min_value=0, step=1, key=f"miktar_{kod}")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"Alım Kaydet ({kod})", key=f"alım_{kod}") and miktar > 0:
-                        yeni = pd.DataFrame([[bugun, kod, "Alım", miktar, user]], 
-                                            columns=df_hareket.columns)
-                        df_hareket = pd.concat([df_hareket, yeni], ignore_index=True)
-                        df_hareket.to_csv(hareket_csv, index=False)
-                        st.success(f"{kod} için {miktar} adet Alım kaydedildi.")
-                with col2:
-                    if st.button(f"İade Kaydet ({kod})", key=f"iade_{kod}") and miktar > 0:
-                        yeni = pd.DataFrame([[bugun, kod, "İade", miktar, user]], 
-                                            columns=df_hareket.columns)
-                        df_hareket = pd.concat([df_hareket, yeni], ignore_index=True)
-                        df_hareket.to_csv(hareket_csv, index=False)
-                        st.success(f"{kod} için {miktar} adet İade kaydedildi.")
+# ---------------------------------------------------
+# 2️⃣ TOPLU KOD SORGU
+# ---------------------------------------------------
+elif secim == "Toplu Kod Sorgu":
+    kodlar = st.text_area("Kodları alt alta yazın:")
+    if kodlar:
+        sorgu_list = [k.strip() for k in kodlar.splitlines() if k.strip()]
+        sonuc_df = df[df.iloc[:,0].astype(str).str.lower().isin([k.lower() for k in sorgu_list])]
+        if not sonuc_df.empty:
+            st.dataframe(sonuc_df)
+        else:
+            st.error("Hiçbir kod bulunamadı ❌")
 
-# --------------------- 2. Sekme: Hareket Analizi ---------------------
-with sekme[1]:
-    st.subheader("Hareket Analizi (Son 30 Gün)")
-    hareket_sayim = df_hareket.groupby("Kod").size().reset_index(name="Hareket Sayısı")
-    df_analiz = df.merge(hareket_sayim, left_on=df.columns[0], right_on="Kod", how="left").fillna(0)
-    df_analiz["Hareket Sayısı"] = df_analiz["Hareket Sayısı"].astype(int)
+# ---------------------------------------------------
+# 3️⃣ PARÇA HAREKET GİRİŞİ
+# ---------------------------------------------------
+elif secim == "Parça Hareket Girişi":
+    st.write("Alınan veya iade edilen parçaları buradan kaydedin.")
+    kod = st.text_input("Parça Kodu:")
+    miktar = st.number_input("Miktar:", min_value=1, step=1)
+    islem = st.selectbox("İşlem Tipi", ["Alım", "İade"])
+    kullanici = st.text_input("Kullanıcı Adı:")
 
-    def sınıfla(x):
-        if x >= 6: return "🔴 Yüksek"
-        elif x >= 3: return "🟡 Orta"
-        elif x >= 1: return "🟢 Düşük"
-        else: return "⚪ Hareket Yok"
+    if st.button("Kaydı Ekle"):
+        # Kodun listede olup olmadığını kontrol et
+        if df.iloc[:,0].astype(str).str.lower().eq(kod.lower()).any():
+            yeni_kayit = pd.DataFrame([[datetime.now(), kod, islem, miktar, kullanici]],
+                                      columns=["Tarih", "Kod", "İşlem", "Miktar", "Kullanıcı"])
+            df_hareket = pd.concat([df_hareket, yeni_kayit], ignore_index=True)
+            df_hareket.to_csv(hareket_csv, index=False)
+            st.success("Hareket kaydedildi ✅")
+        else:
+            st.error("Kod listede yok, kayıt alınmadı ❌")
 
-    df_analiz["Hareket Sıklığı"] = df_analiz["Hareket Sayısı"].apply(sınıfla)
-    st.dataframe(df_analiz)
+# ---------------------------------------------------
+# 4️⃣ HAREKET GEÇMİŞİ
+# ---------------------------------------------------
+elif secim == "Hareket Geçmişi":
+    if not df_hareket.empty:
+        st.dataframe(df_hareket.sort_values(by="Tarih", ascending=False))
+    else:
+        st.info("Son 30 gün içinde hareket bulunamadı.")
 
-# --------------------- 3. Sekme: Hareket Geçmişi ---------------------
-with sekme[2]:
-    st.subheader("Hareket Geçmişi (Son 30 Gün)")
-    st.dataframe(df_hareket.sort_values("Tarih", ascending=False))
+# ---------------------------------------------------
+# 5️⃣ EN ÇOK HAREKET EDENLER
+# ---------------------------------------------------
+elif secim == "En Çok Hareket Edenler":
+    if not df_hareket.empty:
+        hareket_sayim = df_hareket.groupby("Kod").size().reset_index(name="Hareket Sayısı")
+        hareket_sayim = hareket_sayim.sort_values(by="Hareket Sayısı", ascending=False)
+        st.dataframe(hareket_sayim)
+    else:
+        st.info("Henüz hiç hareket kaydı yok.")
