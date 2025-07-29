@@ -40,7 +40,7 @@ def load_hareket():
 
 df_hareket = load_hareket()
 
-st.title("📦 Kaffesa B2 Depo Kontrol Sistemi - Okan-Lab-Camoon")
+st.title("📦 Kaffesa B2 Depo Kontrol Sistemi / Okan-Lab Camoon")
 st.markdown("Depo kodlarını sorgulayabilir, alım/iade kaydı oluşturabilirsin.")
 
 tab1, tab2, tab3 = st.tabs(["🔍 Parça Sorgu", "➕ Parça Hareketi", "📊 Hareket Geçmişi"])
