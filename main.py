@@ -46,14 +46,22 @@ if menu == "📦 Parça Sorgu ve Hareket":
     st.title("📦 Parça Sorgu ve Hareket Ekleme")
 
     # --- Toplu Kod Girişi ---
-    kod_giris = st.text_input("Parça Kod(lar)ını Girin (boşluk ile ayırın):")
+   kod_girisi = st.text_input("Parça kodlarını girin (boşlukla ayırın):")
 
-    secilen_hareket = st.radio("Hareket Türü", ["Alım", "İade"], horizontal=True)
-    personel = st.text_input("Personel Adı")
+if kod_girisi:
+    # Kullanıcının girdiği kodları boşluklardan ayır, baş/son boşlukları temizle ve büyük harfe çevir
+    kodlar = [k.strip().upper() for k in kod_girisi.split()]
 
-    if kod_giris:
-        kodlar = kod_giris.split()
-        bulunanlar = df[df['Parça Kodu'].isin(kodlar)]
+    # Excel'deki Parça Kodu sütununu da aynı şekilde normalize et
+    df["Kod_Temp"] = df["Parça Kodu"].astype(str).str.strip().str.upper()
+
+    # Eşleşen parçaları filtrele
+    filtre = df[df["Kod_Temp"].isin(kodlar)]
+
+    if filtre.empty:
+        st.warning("Parça bulunamadı.")
+    else:
+        st.dataframe(filtre[["Parça Kodu","Parça Adı","KONUM","Stok"]])
 
         if not bulunanlar.empty:
             st.subheader("🔍 Bulunan Parçalar")
