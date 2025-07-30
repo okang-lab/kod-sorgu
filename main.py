@@ -1,82 +1,115 @@
-import pandas as pd
 import streamlit as st
+import pandas as pd
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
-st.set_page_config(page_title="Kaffesa B2 Depo Kontrol Sistemi", layout="wide")
+# --- AYARLAR ---
+DATA_FILE = "envanter.csv"
+HAREKET_FILE = "hareketler.csv"
 
-DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_O1wYfDZc1nlVcmfwY491muJSojVIP5tcW0ipegIzv_6JTHAINhO3gV_uiLrdvQ/pub?gid=1982264017&single=true&output=csv"
-HAREKET_CSV = "hareketler.csv"
+st.set_page_config(
+    page_title="Kaffesa B2 Depo Kontrol Sistemi",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
+# --- VERİLERİ YÜKLE ---
 @st.cache_data
 def load_data():
-    df = pd.read_csv(DATA_URL)
-    df = df.dropna(subset=["Parça Kodu"])  # Boş satırları at
+    df = pd.read_csv(DATA_FILE)
     return df
 
+def save_data(df):
+    df.to_csv(DATA_FILE, index=False)
+
+def load_hareketler():
+    if not os.path.exists(HAREKET_FILE):
+        return pd.DataFrame(columns=["Tarih","Kod","Parça Adı","Hareket","Adet","Personel"])
+    return pd.read_csv(HAREKET_FILE)
+
+def save_hareketler(df):
+    df.to_csv(HAREKET_FILE, index=False)
+
 df = load_data()
+hareketler = load_hareketler()
 
-# Hareket dosyası yoksa oluştur
-if not os.path.exists(HAREKET_CSV):
-    pd.DataFrame(columns=["Tarih", "İşlem", "Kod", "Adet", "Kullanıcı"]).to_csv(HAREKET_CSV, index=False)
+# --- SAYFA SEÇİMİ ---
+menu = st.sidebar.radio("Menü", ["📦 Parça Sorgu ve Hareket", "📊 Hareket Geçmişi & İstatistik"])
 
-st.title("📦 Kaffesa B2 Depo Kontrol Sistemi")
+# ============================================================
+# 1️⃣ SAYFA: PARÇA SORGU ve HAREKET
+# ============================================================
+if menu == "📦 Parça Sorgu ve Hareket":
+    st.title("📦 Parça Sorgu ve Hareket Ekleme")
 
-# Menü
-secim = st.sidebar.radio("Menü", ["Parça Sorgu", "Hareket Girişi", "Hareket Geçmişi"])
+    # --- Toplu Kod Girişi ---
+    kod_giris = st.text_input("Parça Kod(lar)ını Girin (boşluk ile ayırın):")
 
-# ------------------------- PARÇA SORGU -------------------------
-if secim == "Parça Sorgu":
-    st.subheader("Parça Sorgu (Boşluk ile birden fazla kod yazabilirsiniz)")
-    input_kod = st.text_input("Parça Kodlarını Girin (Boşluk ile ayrılacak)").strip().upper()
+    secilen_hareket = st.radio("Hareket Türü", ["Alım", "İade"], horizontal=True)
+    personel = st.text_input("Personel Adı")
 
-    if input_kod:
-        kod_listesi = input_kod.split()
-        sonuc = df[df["Parça Kodu"].isin(kod_listesi)]
+    if kod_giris:
+        kodlar = kod_giris.split()
+        bulunanlar = df[df['Parça Kodu'].isin(kodlar)]
 
-        if not sonuc.empty:
-            st.dataframe(sonuc[["Parça Kodu", "Parça Adı", "KONUM", "Marka", "Stok"]])
+        if not bulunanlar.empty:
+            st.subheader("🔍 Bulunan Parçalar")
+            # Yan yana butonlu tablo
+            for i, row in bulunanlar.iterrows():
+                col1, col2, col3, col4, col5, col6 = st.columns([2,2,2,1,1,1])
+                with col1: st.markdown(f"**{row['Parça Kodu']}**")
+                with col2: st.markdown(row['Parça Adı'])
+                with col3: st.markdown(row['KONUM'])
+                with col4: st.markdown(str(row['Stok']))
+                with col5:
+                    adet = st.number_input(f"Adet {row['Parça Kodu']}", min_value=0, step=1, key=f"adet_{row['Parça Kodu']}")
+                with col6:
+                    if st.button("✅ Kaydet", key=f"kaydet_{row['Parça Kodu']}"):
+                        if adet > 0 and personel.strip() != "":
+                            hareket = pd.DataFrame([{
+                                "Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                "Kod": row['Parça Kodu'],
+                                "Parça Adı": row['Parça Adı'],
+                                "Hareket": secilen_hareket,
+                                "Adet": adet,
+                                "Personel": personel
+                            }])
+                            hareketler = pd.concat([hareketler, hareket], ignore_index=True)
+                            save_hareketler(hareketler)
+
+                            # Stok Güncelle
+                            if secilen_hareket == "Alım":
+                                df.loc[df['Parça Kodu']==row['Parça Kodu'], 'Stok'] -= adet
+                            else:
+                                df.loc[df['Parça Kodu']==row['Parça Kodu'], 'Stok'] += adet
+                            save_data(df)
+                            st.success(f"{row['Parça Kodu']} için {adet} adet {secilen_hareket} kaydedildi.")
+                        else:
+                            st.warning("Personel adı ve adet girilmeli.")
         else:
-            st.warning("Hiçbir parça bulunamadı.")
+            st.error("❌ Hiçbir kod bulunamadı.")
 
-# ------------------------- HAREKET GİRİŞİ -------------------------
-elif secim == "Hareket Girişi":
-    st.subheader("Parça Hareket Girişi")
+# ============================================================
+# 2️⃣ SAYFA: HAREKET GEÇMİŞİ ve İSTATİSTİK
+# ============================================================
+elif menu == "📊 Hareket Geçmişi & İstatistik":
+    st.title("📊 Hareket Geçmişi ve İstatistik")
 
-    hareket_tip = st.radio("İşlem Tipi", ["Alım", "İade"])
-    kullanici = st.text_input("Kullanıcı İsmi")
+    if not hareketler.empty:
+        # Personel filtresi
+        personeller = ["Tümü"] + list(hareketler['Personel'].unique())
+        secilen_personel = st.selectbox("Personel Filtrele", personeller)
 
-    input_kod = st.text_input("Parça Kodlarını Girin (Boşluk ile ayrılacak)").strip().upper()
-    adet = st.number_input("Adet", min_value=1, value=1)
+        df_goster = hareketler.copy()
+        if secilen_personel != "Tümü":
+            df_goster = df_goster[df_goster['Personel'] == secilen_personel]
 
-    if st.button("Kaydet"):
-        if input_kod and kullanici:
-            kod_listesi = input_kod.split()
-            mevcut_kodlar = df["Parça Kodu"].tolist()
-            gecersiz_kodlar = [k for k in kod_listesi if k not in mevcut_kodlar]
+        st.dataframe(df_goster, use_container_width=True)
 
-            if gecersiz_kodlar:
-                st.error(f"Geçersiz kodlar bulundu: {', '.join(gecersiz_kodlar)}")
-            else:
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                df_hareket = pd.read_csv(HAREKET_CSV)
-                for kod in kod_listesi:
-                    yeni_kayit = pd.DataFrame([[now, hareket_tip, kod, adet, kullanici]],
-                                              columns=["Tarih", "İşlem", "Kod", "Adet", "Kullanıcı"])
-                    df_hareket = pd.concat([df_hareket, yeni_kayit], ignore_index=True)
-                df_hareket.to_csv(HAREKET_CSV, index=False)
-                st.success("Hareket başarıyla kaydedildi!")
-        else:
-            st.warning("Kod ve kullanıcı alanı boş olamaz!")
-
-# ------------------------- HAREKET GEÇMİŞİ -------------------------
-elif secim == "Hareket Geçmişi":
-    st.subheader("Son 30 Günlük Hareketler")
-    df_hareket = pd.read_csv(HAREKET_CSV)
-
-    # Sadece son 30 gün
-    df_hareket["Tarih"] = pd.to_datetime(df_hareket["Tarih"])
-    tarih_filtre = datetime.now() - timedelta(days=30)
-    df_hareket = df_hareket[df_hareket["Tarih"] >= tarih_filtre]
-
-    st.dataframe(df_hareket.sort_values("Tarih", ascending=False))
+        # İstatistik
+        st.subheader("📈 Kullanım Sıklığı")
+        kullanilan = hareketler.groupby("Kod")['Adet'].sum().reset_index()
+        kullanilan = kullanilan.sort_values("Adet", ascending=False)
+        st.bar_chart(kullanilan.set_index("Kod"))
+    else:
+        st.info("Henüz hareket kaydı yok.")
