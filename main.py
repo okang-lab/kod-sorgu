@@ -24,7 +24,8 @@ st.write("**CSV Sütunları:**", df.columns.tolist())
 st.title("Kaffesa B2 Depo Kontrol Sistemi")
 
 # --- Parça kodu girişi ---
-kod_girisi = st.text_input("Parça kod(lar)ını girin (boşluk ile ayırın):")
+kod_girisi = st.text_input("Parça kodlarını girin (boşlukla ayırın):")
+
 if kod_girisi:
     kodlar = [k.strip().upper() for k in kod_girisi.split()]
     filtre = df[df["Kod_Temp"].isin(kodlar)]
