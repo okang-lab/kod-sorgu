@@ -6,6 +6,9 @@ from datetime import datetime
 # --- AYARLAR ---
 DATA_FILE = "envanter.csv"
 HAREKET_FILE = "hareketler.csv"
+if not os.path.exists(DATA_FILE):
+    df = pd.DataFrame(columns=["Parça Kodu","KONUM","Parça Adı","Marka","Stok"])
+    df.to_csv(DATA_FILE, index=False)
 
 st.set_page_config(
     page_title="Kaffesa B2 Depo Kontrol Sistemi",
