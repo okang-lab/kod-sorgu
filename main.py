@@ -1,39 +1,31 @@
 import streamlit as st
 import pandas as pd
-import requests
-import io
-from datetime import datetime
 
 st.set_page_config(page_title="Kaffesa B2 Depo Kontrol Sistemi", layout="wide")
 
-# Google Sheets EXCEL linki
-EXCEL_URL = "https://docs.google.com/spreadsheets/d/1S66WOnKDDMdsb-9j7GLczXI3tcnOftMA/export?format=xlsx"
+# Google Sheets → JSON linki
+# GID = hangi sayfa/sekme ise onu temsil ediyor
+JSON_URL = "https://docs.google.com/spreadsheets/d/1S66WOnKDDMdsb-9j7GLczXI3tcnOftMA/gviz/tq?tqx=out:csv"
 
 @st.cache_data
 def load_data():
-    # Excel dosyasını indir
-    data = requests.get(EXCEL_URL).content
-    df = pd.read_excel(io.BytesIO(data))
+    df = pd.read_csv(JSON_URL)
 
-    # Sütun isimlerini temizle
     df.columns = df.columns.str.strip()
 
-    # Parça kodunu normalize et (büyük harf-temiz)
     if "Parça Kodu" in df.columns:
         df["Kod_Temp"] = df["Parça Kodu"].astype(str).str.strip().str.upper()
     else:
-        st.error("Excel dosyasında 'Parça Kodu' sütunu bulunamadı!")
-    
+        st.error("'Parça Kodu' sütunu bulunamadı!")
+
     return df
 
 df = load_data()
 
-# --- Debug: Sütun isimleri ---
-st.write("**Excel Sütunları:**", df.columns.tolist())
+st.write("**Sheet Sütunları:**", df.columns.tolist())
 
-st.title("Kaffesa B2 Depo Kontrol Sistemi — Excel")
+st.title("Kaffesa B2 Depo Kontrol Sistemi")
 
-# --- Parça kodu girişi ---
 kod_girisi = st.text_input("Parça kodlarını girin (boşlukla ayırın):")
 
 if kod_girisi:
@@ -51,4 +43,4 @@ if kod_girisi:
             ]]
         )
     else:
-        st.warning("Parça bulunamadı. Kodları ve Excel sütunlarını kontrol edin!")
+        st.warning("Parça bulunamadı.")
