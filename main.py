@@ -5,7 +5,7 @@ from datetime import datetime
 st.set_page_config(page_title="Kaffesa B2 Depo Kontrol Sistemi", layout="wide")
 
 # Google Sheets CSV linki
-DATA_FILE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_O1wYfDZc1nlVcmfwY491muJSojVIP5tcW0ipegIzv_6JTHAINhO3gV_uiLrdvQ/pub?output=csv"
+DATA_FILE = "https://drive.google.com/file/d/1F2YiVArQCUXh34yyJNTKGMOwJ_d0QWiM/view?usp=share_link"
 
 @st.cache_data
 def load_data():
