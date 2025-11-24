@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import requests
 
 # Sayfa ayarları
 st.set_page_config(page_title="Kaffesa B2 Depo Kontrol", layout="wide", page_icon="☕")
@@ -11,6 +12,11 @@ st.markdown("---")
 
 # Google Sheets CSV linki
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1S66WOnKDDMdsb-9j7GLczXI3tcnOftMA/export?format=csv&gid=1463822398"
+
+# Son güncellenme tarihini al
+response = requests.head(SHEET_URL)
+last_modified = response.headers.get('Last-Modified', 'Bilinmiyor')
+st.sidebar.markdown(f"**Son Güncelleme:** {last_modified}")
 
 # Dosyayı oku, 2. satır başlık
 df = pd.read_csv(SHEET_URL, header=1)
